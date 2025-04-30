@@ -165,7 +165,7 @@ class SearchView(ui.View):
     @ui.button(label="5. Submit search", style=discord.ButtonStyle.primary)
     async def submit_search(self, interaction: Interaction, button: ui.Button):
         await interaction.response.edit_message(
-            content="Submit search:", view=ValidSearchView(self), delete_after=5
+            content="Submit search:", view=ValidSearchView(self), delete_after=300
         )
 
 
@@ -337,7 +337,9 @@ class ValidSearchView(ui.View):
         data = json.loads(response.content)
 
         ships = data["data"][:5]  # First 5 ships
-
+        if not ships:
+            await interaction.response.send_message("No ships found matching your criteria.", ephemeral=True)
+            return
         embeds = []
 
         for ship in ships:
@@ -362,49 +364,49 @@ class ValidSearchView(ui.View):
 
         await interaction.response.send_message(embeds=embeds, ephemeral=True)
 
+if SECRET_TOKEN:
+    @bot.tree.command(name="upload")
+    async def upload_ship(interaction: discord.Interaction, ship: discord.Attachment):
+        author_name = interaction.user.name
+        author_disc = interaction.user.discriminator
+        if author_name and author_disc:
+            user = f"{author_name}#{author_disc}"
 
-@bot.tree.command(name="upload")
-async def upload_ship(interaction: discord.Interaction, ship: discord.Attachment):
-    author_name = interaction.user.name
-    author_disc = interaction.user.discriminator
-    if author_name and author_disc:
-        user = f"{author_name}#{author_disc}"
+        await interaction.response.defer()
 
-    await interaction.response.defer()
+        image_bytes = await ship.read()
+        encoded_data = base64.b64encode(image_bytes).decode("utf-8")
 
-    image_bytes = await ship.read()
-    encoded_data = base64.b64encode(image_bytes).decode("utf-8")
+        # Generate token for auth
+        payload = {
+            "user": user,
+            "iat": datetime.now(tz=timezone.utc),
+            "exp": datetime.now(tz=timezone.utc) + timedelta(seconds=15),
+        }
+        token = jwt.encode(payload, SECRET_TOKEN, algorithm="HS256")
 
-    # Generate token for auth
-    payload = {
-        "user": user,
-        "iat": datetime.now(tz=timezone.utc),
-        "exp": datetime.now(tz=timezone.utc) + timedelta(seconds=15),
-    }
-    token = jwt.encode(payload, SECRET_TOKEN, algorithm="HS256")
+        # Call API with aiohttp
+        base_path = "/insert_ship"
+        target = urljoin(API_URL, base_path)
+        json_data = {"token": token, "image": encoded_data}
 
-    # Call API with aiohttp
-    base_path = "/insert_ship"
-    target = urljoin(API_URL, base_path)
-    json_data = {"token": token, "image": encoded_data}
+        async with aiohttp.ClientSession() as session:
+            async with session.post(target, json=json_data) as resp:
+                if resp.status != 200:
+                    await interaction.followup.send("Error adding ship (API failed)")
+                    return
+                data = await resp.json()
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(target, json=json_data) as resp:
-            if resp.status != 200:
-                await interaction.followup.send("Error adding ship (API failed)")
-                return
-            data = await resp.json()
-
-    try:
-        ship_id = data["data"]["ship_id"]
-        edit_url = f"{FRONT_URL}/edit/{ship_id}"
-        view_url = f"{FRONT_URL}/ship/{ship_id}"
-        await interaction.followup.send(
-            f"Ship added to library.\nedit: {edit_url}\nview: {view_url}", suppress_embeds=True
-        )
-    except Exception as e:
-        print("Exception:", e)
-        await interaction.followup.send("Error adding ship (Invalid response)")
+        try:
+            ship_id = data["data"]["ship_id"]
+            edit_url = f"{FRONT_URL}/edit/{ship_id}"
+            view_url = f"{FRONT_URL}/ship/{ship_id}"
+            await interaction.followup.send(
+                f"Ship added to library.\nedit: {edit_url}\nview: {view_url}", suppress_embeds=True
+            )
+        except Exception as e:
+            print("Exception:", e)
+            await interaction.followup.send("Error adding ship (Invalid response)")
 
 
 @bot.tree.command(name="search")

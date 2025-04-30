@@ -33,12 +33,16 @@ Create a `.env` file with the following variables:
 - `DISCORD_API`: Your Discord bot token
 - `URL_API`: API endpoint URL
 - `URL_FRONT`: Frontend URL
-- `TOKEN_SECRET`: Secret token for authentication
+- `TOKEN_SECRET`: Secret token for authentication (ask me to be added, used only for upload)
 
 ## Commands
 
 - `/search`: Search for ships with advanced filtering options
 - `/upload`: Upload a new ship design
+
+## API Endpoints
+- `URL_API`: need API in version 2, use https://cosmoship-api.hport.dev (non cached) or https://cosmoship-api-cdn.hport.dev (cached 4h TTL) (faster)
+- `URL_FRONT`: use either new front https://cosmoship.hport.dev (non cached) | https://cosmoship-cdn.hport.dev (cached 4h TTL) or vercel host https://cosmo-lilac.vercel.app (slow but always up)
 
 ## License
 
